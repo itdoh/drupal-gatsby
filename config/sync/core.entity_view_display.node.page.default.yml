@@ -1,0 +1,29 @@
+uuid: f34788ad-9b6e-4912-8ec6-d32cd2b03c65
+langcode: en
+status: true
+dependencies:
+  config:
+    - field.field.node.page.body
+    - node.type.page
+  module:
+    - text
+    - user
+_core:
+  default_config_hash: TaYK3dsjCiSYm6Z-oTF9P5E79E4tx-ik6s97OTqqXMQ
+id: node.page.default
+targetEntityType: node
+bundle: page
+mode: default
+content:
+  body:
+    label: hidden
+    type: text_default
+    weight: 100
+    region: content
+    settings: {  }
+    third_party_settings: {  }
+  links:
+    weight: 101
+    region: content
+hidden:
+  content_moderation_control: true

@@ -1,0 +1,26 @@
+uuid: 33f006dd-ef27-4b96-a75e-186be4c8d1de
+langcode: en
+status: true
+dependencies:
+  config:
+    - system.menu.main
+  module:
+    - system
+  theme:
+    - umami
+_core:
+  default_config_hash: lntF3vPJReDfuGBLqCIliF6BryocpyX1wsnJ8cmjAzA
+id: umami_main_menu
+theme: umami
+region: header
+weight: -6
+provider: null
+plugin: 'system_menu_block:main'
+settings:
+  id: 'system_menu_block:main'
+  label: 'Main navigation'
+  provider: system
+  label_display: '0'
+  level: 1
+  depth: 1
+visibility: {  }
