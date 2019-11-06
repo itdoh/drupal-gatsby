@@ -1,0 +1,21 @@
+{
+  "name": "drupal/webpower",
+  "description": "Establish a REST API connection with Webpower.",
+  "type": "drupal-module",
+  "homepage": "https://drupal.org/project/webpower",
+  "authors": [{
+    "name": "Chiyana Simões (kundukundu)",
+    "homepage": "https://www.drupal.org/u/kundukundu",
+    "role": "Maintainer"
+  }],
+  "support": {
+    "issues": "https://drupal.org/project/issues/webpower",
+    "irc": "irc://irc.freenode.org/drupal-contribute",
+    "source": "https://cgit.drupalcode.org/webpower"
+  },
+  "license": "GPL-2.0-or-later",
+  "minimum-stability": "dev",
+  "require": {
+    "guzzlehttp/guzzle": "~6.0"
+  }
+}

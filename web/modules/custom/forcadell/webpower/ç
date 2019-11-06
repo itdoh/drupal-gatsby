@@ -1,0 +1,25 @@
+webpower.content:
+  path: '/webpower'
+  defaults:
+    _controller: '\Drupal\webpower\Controller\WebpowerController::content'
+    _title: 'Webpower Contact List'
+  requirements:
+    _permission: 'access content'
+
+webpower.settings:
+  path: '/admin/structure/webpower/settings' 
+  defaults:
+    _form: '\Drupal\webpower\Form\webpowerSettingsForm'
+    _title: 'webpower'
+  requirements:
+    _permission: 'administer site configuration'
+
+webpower.post:
+  path: '/jsonapi/webpower_forcadell'
+  defaults:
+    _controller: '\Drupal\webpower\Controller\WebpowerController::post'
+    _title: 'Save contact'
+    methods:  [POST]
+  requirements:
+     _access: 'TRUE'
+          #_permission: 'access content'

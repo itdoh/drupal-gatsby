@@ -1,0 +1,105 @@
+diff --git a/core/includes/file.inc b/core/includes/file.inc
+index c246fe402f..3d7cb6ff5b 100644
+--- a/core/includes/file.inc
++++ b/core/includes/file.inc
+@@ -215,53 +215,59 @@ function file_stream_wrapper_uri_normalize($uri) {
+ function file_create_url($uri) {
+   // Allow the URI to be altered, e.g. to serve a file from a CDN or static
+   // file server.
+-  \Drupal::moduleHandler()->alter('file_url', $uri);
+-
+-  $scheme = StreamWrapperManager::getScheme($uri);
+-
+-  if (!$scheme) {
+-    // Allow for:
+-    // - root-relative URIs (e.g. /foo.jpg in http://example.com/foo.jpg)
+-    // - protocol-relative URIs (e.g. //bar.jpg, which is expanded to
+-    //   http://example.com/bar.jpg by the browser when viewing a page over
+-    //   HTTP and to https://example.com/bar.jpg when viewing a HTTPS page)
+-    // Both types of relative URIs are characterized by a leading slash, hence
+-    // we can use a single check.
+-    if (mb_substr($uri, 0, 1) == '/') {
+-      return $uri;
+-    }
+-    else {
+-      // If this is not a properly formatted stream, then it is a shipped file.
+-      // Therefore, return the urlencoded URI with the base URL prepended.
+-      $options = UrlHelper::parse($uri);
+-      $path = $GLOBALS['base_url'] . '/' . UrlHelper::encodePath($options['path']);
+-      // Append the query.
+-      if ($options['query']) {
+-        $path .= '?' . UrlHelper::buildQuery($options['query']);
++  try{
++    \Drupal::moduleHandler()->alter('file_url', $uri);
++
++    $scheme = StreamWrapperManager::getScheme($uri);
++
++    if (!$scheme) {
++      // Allow for:
++      // - root-relative URIs (e.g. /foo.jpg in http://example.com/foo.jpg)
++      // - protocol-relative URIs (e.g. //bar.jpg, which is expanded to
++      //   http://example.com/bar.jpg by the browser when viewing a page over
++      //   HTTP and to https://example.com/bar.jpg when viewing a HTTPS page)
++      // Both types of relative URIs are characterized by a leading slash, hence
++      // we can use a single check.
++      if (mb_substr($uri, 0, 1) == '/') {
++        return $uri;
+       }
+-
+-      // Append fragment.
+-      if ($options['fragment']) {
+-        $path .= '#' . $options['fragment'];
++      else {
++        // If this is not a properly formatted stream, then it is a shipped file.
++        // Therefore, return the urlencoded URI with the base URL prepended.
++        $options = UrlHelper::parse($uri);
++        $path = $GLOBALS['base_url'] . '/' . UrlHelper::encodePath($options['path']);
++        // Append the query.
++        if ($options['query']) {
++          $path .= '?' . UrlHelper::buildQuery($options['query']);
++        }
++
++        // Append fragment.
++        if ($options['fragment']) {
++          $path .= '#' . $options['fragment'];
++        }
++
++        return $path;
+       }
+-
+-      return $path;
+     }
+-  }
+-  elseif ($scheme == 'http' || $scheme == 'https' || $scheme == 'data') {
+-    // Check for HTTP and data URI-encoded URLs so that we don't have to
+-    // implement getExternalUrl() for the HTTP and data schemes.
+-    return $uri;
+-  }
+-  else {
+-    // Attempt to return an external URL using the appropriate wrapper.
+-    if ($wrapper = \Drupal::service('stream_wrapper_manager')->getViaUri($uri)) {
+-      return $wrapper->getExternalUrl();
++    elseif ($scheme == 'http' || $scheme == 'https' || $scheme == 'data') {
++      // Check for HTTP and data URI-encoded URLs so that we don't have to
++      // implement getExternalUrl() for the HTTP and data schemes.
++      return $uri;
+     }
+     else {
+-      return FALSE;
++      // Attempt to return an external URL using the appropriate wrapper.
++      if ($wrapper = \Drupal::service('stream_wrapper_manager')->getViaUri($uri)) {
++        return $wrapper->getExternalUrl();
++      }
++      else {
++        return FALSE;
++      }
+     }
+   }
++  catch (\Exception $e) {
++    \Drupal::logger('some_execution_error')->warning('<pre><code>' . print_r($e, TRUE) . '</code></pre>');
++    drupal_set_message('There is some problem in execution', 'error');
++  }  
+ }
+ 
+ /**
+ 

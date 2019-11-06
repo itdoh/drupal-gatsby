@@ -1,0 +1,9 @@
+name: Forcadell Webform
+description: A module to interact between frontend forms and webform mudule
+package: Forcadell
+type: module
+version: 1.0
+core: 8.x
+
+dependencies:
+  - webform:webform (>=8.x-5.x)

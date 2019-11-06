@@ -1,0 +1,6 @@
+name: Webpower Simplenews
+description: Module to interact with Simplenews.
+package: Webpower
+
+type: module
+core: 8.x

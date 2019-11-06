@@ -1,0 +1,9 @@
+webform_forcadell.content:
+  path: '/jsonapi/webform_forcadell'
+  defaults:
+    _controller: '\Drupal\webform_forcadell\Controller\WebformforcadellController::post'
+    _title: 'Save it'
+  methods:  [POST]
+  requirements:
+     _access: 'TRUE'
+       #_permission: 'access content'

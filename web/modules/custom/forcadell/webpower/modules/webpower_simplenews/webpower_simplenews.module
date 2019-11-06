@@ -1,0 +1,457 @@
+<?php
+
+use Drupal\Core\Routing\RouteMatchInterface;
+use Drupal\webpower\Plugin\WebpowerAPI\WebpowerAPIClient;
+use Drupal\simplenews\Subscription\SubscriptionManager;
+
+/**
+ * Implements hook_help().
+ */
+function webpower_simplenews_help($route_name, RouteMatchInterface $route_match)
+{
+    switch ($route_name) {
+    case 'help.page.webpower_simplenews':
+      return t('
+        <h2>Simple module for simplenews and webpower.</h2>
+        <h3>Instructions</h3>
+        <p>Unpack in the <em>modules</em> folder (currently in the root of your Drupal 8 installation) and enable in <strong>/admin/modules</strong>.</p> ');
+  }
+}
+
+/**
+ * Implements hook_simplenews_subscribe().
+ */
+function webpower_simplenews_simplenews_subscribe($subscriber, $subscription)
+{
+
+
+    //WebPower Config
+    $config = getWebpowerCredentials();
+    $args = array(
+    'mail' => $subscriber->getMail(),
+    //'language' => $subscriber->getLangcode(),
+    //'user' => $subscriber->getUser(),
+    /** @return array of newsletter ids
+    *   Returns the ids of all newsletters the subscriber is subscribed. */
+    //'newsletterIds' => $subscriber->getSubscribedNewsletterIds(),
+    'campaignGroup' => $config['campaignGroupYes'],
+  );
+
+    //Como Forcadell utiliza siempre el mismo formulario y newsletter
+    //Necesitamos asegurar que esta programación solamente afecta a los usuarios
+    //que se registran en la newsletter. O sea, solamente los usuarios que no són socios.
+    try {
+        if (null != $subscriber->getMail()) {
+            //Queremos guardar todos los contactos?
+            if (isset($config['allContacts']) && $config['allContacts'] == true) {
+              //Grupo no quiero newsletter.
+              //Los usuarios registrados que no tienen entradas en simplenews son los que quieren newsletter.
+                save_as_webpower_contact_and_group($args);
+            } else {
+                $user = user_load_by_mail($subscriber->getMail());
+                if (null != $user) {
+                    if (null != $user->getUsername()) {
+                        //Existe el ususario y es muy probable que ya exista en la base de datos de newsletters
+                        \Drupal::logger('type')->info(t('Existe el ususario y es muy probable que ya exista en la base de datos de newsletters ') . json_encode([$user->getUsername()]));
+                        //Los usuarios registrados que no tienen entradas en simplenews son los que quieren newsletter.
+                        $args['campaignGroup'] = $config['campaignGroupNo'];
+                        if($user->isActive()){
+                          save_as_webpower_contact_and_group($args);
+                        }
+                    }
+                } else {
+                    save_as_webpower_contact_and_group($args);
+                }
+            }
+        }
+    } catch (\Exception $e) {
+        // Log the exception to watchdog.
+        \Drupal::logger('type')->error($e->getMessage());
+    }
+}
+
+
+
+/**
+ * Invoked if a subscriber is unsubscribed from a newsletter.
+ *
+ * @param $subscriber
+ *   The subscriber object including all subscriptions of this user.
+ *
+ * @param $subscription
+ *   The subscription object for this specific unsubscribe action.
+ *
+ * @TODO: Delete user from webpower
+ *
+ * @ingroup subscriber
+ */
+function webpower_simplenews_simplenews_unsubscribe($subscriber, $subscription)
+{
+}
+
+function save_as_webpower_contact($args)
+{
+    try {
+        $config = getWebpowerCredentials();
+        $wpApi = new WebpowerAPIClient($config['clientId'], $config['clientSecret']);
+        $wpApi->prepareAccessToken();
+        $customField = new \stdClass();
+        $customField->field = "name";
+        $customField->value = "subscriber club forcadell";
+        $data = [
+        "email" => $args['mail'],
+        "lang" => (isset($config['campaignId']) && $config['campaignId'] == 2) ? 'ca' : 'es',//$args['language'], /* error: @"exception":"ContactCouldNotBeCreatedException","message":"Contact could not be created: El idioma es no est\u00e1 disponible en la campa\u00f1a."*/
+       $customField
+    ];
+        /* If contact exists it does not create or update it */
+        $contact = $wpApi->postContact($config['campaignId'], $data);
+        if (null != $contact) {
+            if (is_string($contact)) {
+                $contact = json_decode($contact);
+            }
+            if (isset($contact->id)) {
+                \Drupal::logger('type')->info(t('New contact created on webpower. Webpower response: ') . json_encode($contact));
+                return $contact->id;
+            }
+        }
+
+        if (strpos(json_encode($contact), 'exception') !== false) {
+            \Drupal::logger('type')->error(json_encode($contact));
+        }
+
+
+    } catch (\Exception $e) {
+        // Log the exception to watchdog.
+        \Drupal::logger('type')->error($e->getMessage());
+    }
+}
+
+function get_contact_group_id($name='BBDD Newsletter')
+{
+    try {
+        $config = getWebpowerCredentials();
+        $wpApi = new WebpowerAPIClient($config['clientId'], $config['clientSecret']);
+        $wpApi->prepareAccessToken();
+        /* If contact exists it does not create or update it */
+        $groupId = $wpApi->getGroupIdByName($config['campaignId'], $name);
+
+        if (strpos(json_encode($groupId), 'exception') !== false) {
+            \Drupal::logger('type')->error(json_encode($groupId));
+        } else {
+            \Drupal::logger('type')->info(t('Creating a new contact. Webpower Group ID: ') . json_encode($groupId));
+        }
+        return $groupId;
+    } catch (\Exception $e) {
+        // Log the exception to watchdog.
+        \Drupal::logger('type')->error($e->getMessage());
+    }
+}
+
+function get_webpower_fc_contact_id($email)
+{
+    try {
+        $config = getWebpowerCredentials();
+        $wpApi = new WebpowerAPIClient($config['clientId'], $config['clientSecret']);
+        $wpApi->prepareAccessToken();
+        /* If contact exists it does not create or update it */
+        return $wpApi->getContactIdByEmail($config['campaignId'], $email);
+    } catch (\Exception $e) {
+        // Log the exception to watchdog.
+        \Drupal::logger('type')->error($e->getMessage());
+    }
+}
+
+/**
+ * Get forcadell webpower campaings names and ids
+ * @return Array/null the key/value pair for campaings
+ */
+function get_webpower_fc_campaigns()
+{
+    try {
+        $config = getWebpowerCredentials();
+        $wpApi = new WebpowerAPIClient($config['clientId'], $config['clientSecret']);
+        $wpApi->prepareAccessToken();
+        /* If contact exists it does not create or update it */
+        $result = $wpApi->getCampaigns();
+
+
+        if (strpos(json_encode($result), 'exception') !== false) {
+            \Drupal::logger('type')->error(json_encode($result));
+        }
+        $result = json_decode($result);
+        if (isset($result->result)) {
+            $array = $result->result;
+            foreach ($array as $item) {
+                $output[$item->id] = $item->name;
+            }
+        }
+        if(null == $output){
+          $output = [
+            2 => 'Club Forcadell',
+            4 => 'Club-Forcadell Sandbox'
+          ];
+        }
+        return $output;
+    } catch (\Exception $e) {
+        // Log the exception to watchdog.
+        \Drupal::logger('type')->error($e->getMessage());
+    }
+}
+/**
+ * Gets all groups by Campaign ID
+ * @return Array/null The group list
+ */
+function get_webpower_fc_groups($campaingId = 2)
+{
+    try {
+        $config = getWebpowerCredentials();
+        $wpApi = new WebpowerAPIClient($config['clientId'], $config['clientSecret']);
+        $wpApi->prepareAccessToken();
+        /* If contact exists it does not create or update it */
+        $result = $wpApi->getGroups($campaingId);
+        $output = [];
+
+        if (strpos(json_encode($result), 'exception') !== false) {
+            \Drupal::logger('type')->error(json_encode($result));
+        }
+        $result = json_decode($result);
+
+            $array = $result->result;
+            foreach ($array as $item) {
+              #if(!isset($item->name)){
+                 $output[$item->name] = $item->name;
+              #}
+            }
+
+            if(null == $output){
+              $output = [
+                'Newsletter' => 'Newsletter',
+                'DDBB Newsletter' => 'DDBB Newsletter'
+              ];
+            }
+
+        return $output;
+    } catch (\Exception $e) {
+        // Log the exception to watchdog.
+        \Drupal::logger('type')->error($e->getMessage());
+    }
+}
+/**
+* @returns The id of the added group
+*/
+function save_as_campaign_group($name='DDBB Newsletter')
+{
+    try {
+        $config = getWebpowerCredentials();
+        $wpApi = new WebpowerAPIClient($config['clientId'], $config['clientSecret']);
+        $wpApi->prepareAccessToken();
+        $data = [
+          "name" => $name,
+          "is_test" => false,//$args['language'],
+          "is_active" => true
+        ];
+        /* If contact exists it does not create or update it */
+        $group = $wpApi->postGroup($config['campaignId'], $data);
+        if (null != $group) {
+            $group = json_decode($group);
+            if (isset($group->id)) {
+                return $group->id;
+            }
+        }
+        if (strpos(json_encode($group), 'exception') !== false) {
+            \Drupal::logger('type')->error(json_encode($group));
+        } else {
+            \Drupal::logger('type')->info(t('Creating a new Campaign Group. Webpower response: ') . json_encode($group));
+        }
+    } catch (\Exception $e) {
+        // Log the exception to watchdog.
+        \Drupal::logger('type')->error($e->getMessage());
+    }
+}
+
+/**
+* @returns The id of the added group
+*/
+function save_as_contact_in_group($contactId, $groupId)
+{
+    try {
+        $config = getWebpowerCredentials();
+        $wpApi = new WebpowerAPIClient($config['clientId'], $config['clientSecret']);
+        $wpApi->prepareAccessToken();
+        /* If contact exists it does not create or update it */
+        $contactInGroup = $wpApi->postContactGroups($config['campaignId'], $contactId, [$groupId]);
+        if (null != $contactInGroup) {
+            $contactInGroup = json_decode($contactInGroup);
+            if (isset($contactInGroup->id)) {
+                return $contactInGroup->id;
+            }
+        }
+        if (strpos(json_encode($contactInGroup), 'exception') !== false) {
+            \Drupal::logger('type')->error(json_encode($contactInGroup));
+        } else {
+            \Drupal::logger('type')->info(t('Adding a contact to a group. Webpower response: ') . json_encode($contactInGroup));
+        }
+    } catch (\Exception $e) {
+        // Log the exception to watchdog.
+        \Drupal::logger('type')->error($e->getMessage());
+    }
+}
+
+function webpower_simplenews_form_alter(&$form, $form_state, $form_id)
+{
+    if ($form_id == 'simplenews_confirm_add') {
+        foreach (array_keys($form['actions']) as $action) {
+            if ($action != 'preview' && isset($form['actions'][$action]['#type']) && $form['actions'][$action]['#type'] === 'submit') {
+                //  $form['actions'][$action]['#submit'][] = 'webpower_simplenews_form_submit';
+            }
+        }
+    }
+}
+
+function webpower_simplenews_form_submit($form, $form_state)
+{
+}
+
+function save_as_webpower_contact_and_group($args)
+{
+    //registramos el usario en webpower si no existe.
+    $groupId = null;
+    $contactId = get_webpower_fc_contact_id($args['mail']);
+    //Si ya existe no volvemos a guardar
+    if(null != $contactId){
+      return $contactId;
+    }
+    print_r(['lin 328:', $args]);
+    $contactId = save_as_webpower_contact($args);
+    if (null != $contactId) {
+        _webpower_save_group($args, $contactId);
+        #if (is_numeric($contactId)) {
+        #    //verificamos si existe el grupo newsletter
+        #    $groupId = get_contact_group_id($args['campaignGroup']);
+        #    //Si no existe lo creamos
+        #    if (!$groupId) {
+        #        $groupId = save_as_campaign_group($args['campaignGroup']);
+        #    }
+        #}
+        #//recogemos su id de una forma u otra
+        #if (null != $groupId) {
+        #    //asignamos el contacto al grupo
+        #    save_as_contact_in_group($contactId, $groupId);
+        #}
+    }
+    return $contactId;
+}
+
+function getWebpowerCredentials()
+{
+    $config = \Drupal::config('webpower.settings');
+    return [
+    'clientId' => (null != $config->get('webpower_client_id') ? $config->get('webpower_client_id') : 'feaaeef1728917dbad1c'),
+    'clientSecret' => (null != $config->get('webpower_client_secret') ? $config->get('webpower_client_secret')  : '02a72cd0b8070ffe51897cd17e54ba647c9af4dc'),
+    'campaignId' => (null != $config->get('webpower_campaign_id') ?  $config->get('webpower_campaign_id')  :  4),
+    'campaignGroupYes' => (null != $config->get('webpower_campaign_group_yes') ?  $config->get('webpower_campaign_group_yes')  :  'DDBB Newsletter'),
+    'campaignGroupNo' => (null != $config->get('webpower_campaign_group_no') ?  $config->get('webpower_campaign_group_no')  :  'Club No Envíos'),
+    'allContacts' => (null != $config->get('webpower_all_contacts') ? $config->get('webpower_all_contacts') : false)
+  ];
+}
+
+function webpower_simplenews_form_user_register_form_alter(&$form, $form_state, $form_id){
+    $form['actions']['submit']['#submit'][] = 'custom_webpower_registration_yes';
+}
+
+
+function custom_webpower_registration_yes($form, &$form_state){
+
+    $user = \Drupal\user\Entity\User::load($form_state->getValue('uid'));
+    $args = [];
+    //WebPower Config
+    $config = getWebpowerCredentials();
+
+    $args = array(
+    'mail' => $user->getEmail(),
+    /** @return array of newsletter ids
+    *   Returns the ids of all newsletters the subscriber is subscribed. */
+    'campaignGroup' => $config['campaignGroupYes'],
+    );
+    $current_path = \Drupal::service('path.current')->getPath();
+
+        $subscribe = $form_state->getValue('subscriptions')['default'];
+        //Si el usuario no ha seleccionado la opción el día 20 de abril de 2019
+        //Significa que el usuario quiere recibir la newsletter. Lo registramos en Webpower en el grupo "DDBB Newsletter"
+        if(isset($form_state->getValue('subscriptions')['default'])
+        && $form_state->getValue('subscriptions')['default'] === 'default'){
+            $args['campaignGroup'] = $config['campaignGroupNo'];
+        }
+        \Drupal::logger('type')->info(t('Registramos el usuario en Webpower, si activo en clubforcadell. ') . json_encode([$user->getUsername()]));
+        //Los usuarios registrados que no tienen entradas en simplenews son los que quieren newsletter.
+        if($user->isActive()){
+          save_as_webpower_contact_and_group($args);
+        }
+}
+
+
+/**
+ * [webpower_simplenews_entity_update description]
+ * @param  DrupalCoreEntityEntityInterface $entity [description]
+ * @return [type]                                  [description]
+ */
+function webpower_simplenews_user_update(Drupal\Core\Entity\EntityInterface $entity) {
+  if(null != $entity->getEmail()){
+    _simplenews_user_update($entity);
+  }
+}
+
+function _simplenews_user_update($entity){
+
+  $originalUser = $entity->original;
+  $config = getWebpowerCredentials();
+  $current_path = \Drupal::service('path.current')->getPath();
+  //Si hemos habilitado el usuario
+  if(!$originalUser->isActive()){
+    if($entity->isActive()){
+      $args = array(
+          'mail' => $entity->getEmail(),
+          'campaignGroup' => $config['campaignGroupYes'],
+      );
+      $subscriber = simplenews_subscriber_load_by_mail($entity->getEmail());
+      //Si el usuario no quiere la newsletter (ha seleccionado el checkbox)
+      //Significa que su email está en la newsletter
+      if(null != $subscriber){
+          /* tener atención a este caso si
+         forcadell algun dia cambia el copy del formulario*/
+        //Registramos el usuario en el grupo de los NO's
+        $args['campaignGroup'] = $config['campaignGroupNo'];
+        save_as_webpower_contact_and_group($args);
+      }else{//No he clicado
+        if ($current_path != '/user/register/soci') {
+          save_as_webpower_contact_and_group($args);
+        }
+      }
+    }
+  }
+}
+
+function _webpower_save_group($args, $contactId){
+  if (is_numeric($contactId)) {
+      //verificamos si existe el grupo newsletter
+      $groupId = get_contact_group_id($args['campaignGroup']);
+      //Si no existe lo creamos
+      if (!$groupId) {
+          $groupId = save_as_campaign_group($args['campaignGroup']);
+      }
+  }
+  //recogemos su id de una forma u otra
+  if (null != $groupId) {
+      //asignamos el contacto al grupo
+      save_as_contact_in_group($contactId, $groupId);
+  }
+  return $contactId;
+}
+
+function show_webpower_message($contact){
+  if (strpos(json_encode($contact), 'exception') !== false) {
+      \Drupal::logger('type')->error(json_encode($contact));
+  } else {
+      \Drupal::logger('type')->info(t('New contact created on webpower. Webpower response: ') . json_encode($contact));
+  }
+}

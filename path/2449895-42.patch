@@ -1,0 +1,134 @@
+diff --git a/core/includes/file.inc b/core/includes/file.inc
+index 77a743eab0..5339052dc5 100644
+--- a/core/includes/file.inc
++++ b/core/includes/file.inc
+@@ -176,11 +176,12 @@ function file_stream_wrapper_uri_normalize($uri) {
+  *   The URI to a file for which we need an external URL, or the path to a
+  *   shipped file.
+  *
+- * @return string
++ * @return string|false
+  *   A string containing a URL that may be used to access the file.
+  *   If the provided string already contains a preceding 'http', 'https', or
+  *   '/', nothing is done and the same string is returned. If a stream wrapper
+- *   could not be found to generate an external URL, then FALSE is returned.
++ *   could not be found to generate an external URL or a file doesn't have an
++ *   external URL, then FALSE is returned.
+  *
+  * @see https://www.drupal.org/node/515192
+  * @see file_url_transform_relative()
+@@ -228,12 +229,12 @@ function file_create_url($uri) {
+   }
+   else {
+     // Attempt to return an external URL using the appropriate wrapper.
++    /* @var \Drupal\Core\StreamWrapper\StreamWrapperInterface $wrapper */
+     if ($wrapper = \Drupal::service('stream_wrapper_manager')->getViaUri($uri)) {
+       return $wrapper->getExternalUrl();
+     }
+-    else {
+-      return FALSE;
+-    }
++
++    return FALSE;
+   }
+ }
+ 
+diff --git a/core/lib/Drupal/Core/StreamWrapper/StreamWrapperInterface.php b/core/lib/Drupal/Core/StreamWrapper/StreamWrapperInterface.php
+index 0d382404b2..5a58eec312 100644
+--- a/core/lib/Drupal/Core/StreamWrapper/StreamWrapperInterface.php
++++ b/core/lib/Drupal/Core/StreamWrapper/StreamWrapperInterface.php
+@@ -145,8 +145,9 @@ public function getUri();
+    * "youtube://xIpLd0WQKCY" might be
+    * "http://www.youtube.com/watch?v=xIpLd0WQKCY".
+    *
+-   * @return string
+-   *   Returns a string containing a web accessible URL for the resource.
++   * @return string|false
++   *   Returns a string containing a web accessible URL for the resource or
++   *   FALSE if a stream doesn't/cannot provide the URL.
+    */
+   public function getExternalUrl();
+ 
+diff --git a/core/modules/locale/src/StreamWrapper/TranslationsStream.php b/core/modules/locale/src/StreamWrapper/TranslationsStream.php
+index e7cb2788e7..b4c6e0d3e1 100644
+--- a/core/modules/locale/src/StreamWrapper/TranslationsStream.php
++++ b/core/modules/locale/src/StreamWrapper/TranslationsStream.php
+@@ -41,12 +41,11 @@ public function getDirectoryPath() {
+   }
+ 
+   /**
+-   * Implements Drupal\Core\StreamWrapper\StreamWrapperInterface::getExternalUrl().
+-   * @throws \LogicException
+-   *   PO files URL should not be public.
++   * {@inheritdoc}
+    */
+   public function getExternalUrl() {
+-    throw new \LogicException('PO files URL should not be public.');
++    // PO files URL should not be public.
++    return FALSE;
+   }
+ 
+ }
+diff --git a/core/modules/locale/tests/src/Functional/LocaleImportFunctionalTest.php b/core/modules/locale/tests/src/Functional/LocaleImportFunctionalTest.php
+index c63c4e4261..944dd66fcc 100644
+--- a/core/modules/locale/tests/src/Functional/LocaleImportFunctionalTest.php
++++ b/core/modules/locale/tests/src/Functional/LocaleImportFunctionalTest.php
+@@ -362,6 +362,40 @@ public function testCreatedLanguageTranslation() {
+     $this->assertEqual($override->get('label'), 'Deutsch');
+   }
+ 
++  /**
++   * Tests that imported PO files aren't break the UI provided by "views".
++   *
++   * @throws \Behat\Mink\Exception\ExpectationException
++   *
++   * @link https://www.drupal.org/project/drupal/issues/2449895
++   */
++  public function testPoFileImportAndAccessibilityOfFilesOverviewViewsPage() {
++    $this->container
++      ->get('module_installer')
++      ->install(['system', 'user', 'file', 'views']);
++
++    // Create and log in a user that's able to upload/import translations
++    // and has an access to the overview of files in a system.
++    $this->drupalLogin($this->drupalCreateUser([
++      'access administration pages',
++      'access files overview',
++      'administer languages',
++      'translate interface',
++    ]));
++
++    // Import a dummy PO file.
++    $this->importPoFile($this->getPoFile(), [
++      'langcode' => 'fr',
++    ]);
++
++    // The problem this test cover is exposed in an exception that is thrown
++    // by the "\Drupal\locale\StreamWrapper\TranslationsStream" when "views"
++    // module provides a page of files overview. Refer to the issue to find
++    // more information.
++    $this->drupalGet('admin/content/files');
++    $this->assertSession()->statusCodeEquals(200);
++  }
++
+   /**
+    * Helper function: import a standalone .po file in a given language.
+    *
+@@ -371,11 +405,12 @@ public function testCreatedLanguageTranslation() {
+    *   (optional) Additional options to pass to the translation import form.
+    */
+   public function importPoFile($contents, array $options = []) {
+-    $name = \Drupal::service('file_system')->tempnam('temporary://', "po_") . '.po';
+-    file_put_contents($name, $contents);
+-    $options['files[file]'] = $name;
++    $file_system = $this->container->get('file_system');
++    $file_path = $file_system->tempnam('temporary://', 'po_') . '.po';
++    file_put_contents($file_path, $contents);
++    $options['files[file]'] = $file_path;
+     $this->drupalPostForm('admin/config/regional/translate/import', $options, t('Import'));
+-    drupal_unlink($name);
++    $file_system->unlink($file_path);
+   }
+ 
+   /**
+   

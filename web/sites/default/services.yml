@@ -163,11 +163,12 @@ parameters:
     # Specify allowed headers, like 'x-allowed-header'.
     allowedHeaders: ['x-csrf-token','authorization','content-type','accept','origin','x-requested-with', 'access-control-allow-origin','x-allowed-header','*']
     # Specify allowed request methods, specify ['*'] to allow all possible ones.
-    allowedMethods: ['*']
+    allowedMethods: ['GET', 'POST','*']
     # Configure requests allowed from specific origins.
-    allowedOrigins: ['http://localhost/','http://localhost:8000','http://localhost:9000','*']
+    allowedOrigins: ['http://localhost/','http://localhost:8000','https://master.dbi9a3di2o77l.amplifyapp.com/','*']
+    #allowedOrigins: ['*']    
     # Sets the Access-Control-Expose-Headers header.
-    exposedHeaders: true
+    exposedHeaders: false
     # Sets the Access-Control-Max-Age header.
     maxAge: false
     # Sets the Access-Control-Allow-Credentials header.

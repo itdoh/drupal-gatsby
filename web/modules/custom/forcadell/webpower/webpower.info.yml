@@ -1,0 +1,8 @@
+name: Webpower
+description: Establish a REST API connection with Webpower.es.
+package: Webpower
+
+type: module
+core: 8.x
+#dependencies:
+#  - webpower_simplenews
