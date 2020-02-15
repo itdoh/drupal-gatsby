@@ -10460,3 +10460,8 @@ span.theme-status-indicator {
     float: left;
     margin-right: 20px;
 }
+#yoast-snippet .snippet-editor__edit-button,
+#yoast-snippet .snippet-editor__form {
+    display: none!important;
+}
+
