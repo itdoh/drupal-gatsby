@@ -21,24 +21,27 @@
         "cweagans/composer-patches": "^1.6.5",
         "drupal-composer/drupal-scaffold": "^2.5",
         "drupal/console": "^1.0.2",
-        "drupal/core": "^8.7.0",
+        "drupal/core": "^8.8",
         "drupal/devel_entity_updates": "^1.0",
         "drupal/easy_install": "^10.1",
         "drupal/jsonapi_extras": "^3.12",
         "drupal/paragraphs": "^1.10",
-        "drupal/pathauto": "^1.4",
+        "drupal/pathauto": "^1.6",
         "drupal/simple_oauth": "^4.2",
         "drupal/webhooks": "^1.0",
         "drush/drush": "^9.7",
+        "symfony/filesystem": "^3.4",
+        "symfony/finder": "^3.4",
         "vlucas/phpdotenv": "^2.4",
-        "webflo/drupal-core-require-dev": "^8.7.0",
         "webflo/drupal-finder": "^1.0.0",
         "webmozart/path-util": "^2.3",
         "willdurand/geocoder": "^4.2",
         "zaporylie/composer-drupal-optimizations": "^1.0"
     },
     "require-dev": {
-        "drupal/coder": "^8.3"
+        "drupal/coder": "^8.3",
+        "drupal/core-dev": "^8.8",
+        "symfony/debug": "^3.4"
     },
     "conflict": {
         "drupal/drupal": "*"
